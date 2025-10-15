@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  mysql_standard:
+    image: mysql:8.0
+    container_name: mysql_standard
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: standard_db
+    volumes:
+      - ./mysql/standard/init:/docker-entrypoint-initdb.d:ro
+      - mysql_standard_data:/var/lib/mysql
+    networks:
+      - etl_net
+
+  mysql_john_deere:
+    image: mysql:8.0
+    container_name: mysql_john_deere
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: john_deere_db
+    volumes:
+      - ./mysql/john_deere/init:/docker-entrypoint-initdb.d:ro
+      - mysql_john_deere_data:/var/lib/mysql
+    networks:
+      - etl_net
+
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./mongo/init:/docker-entrypoint-initdb.d:ro
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: etl
+    networks:
+      - etl_net
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.9
+    container_name: clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: password
+      CLICKHOUSE_DB: etl
+    networks:
+      - etl_net
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - MONGO_URI=mongodb://root:password@mongodb:27017/etl?authSource=admin
+      - DB_NAME=etl
+    depends_on:
+      - mongodb
+    networks:
+      - etl_net
+
+  etl_extract:
+    build:
+      context: ./script
+      dockerfile: Dockerfile
+    container_name: etl_extract
+    env_file:
+      - docker.env
+    depends_on:
+      - mysql_standard
+      - mysql_john_deere
+      - mongodb
+    networks:
+      - etl_net
+    command: ["uv", "run", "python", "tasks/extract.py"]
+
+  etl_extract_realtime:
+    build:
+      context: ./script
+      dockerfile: Dockerfile.realtime
+    container_name: etl_extract_realtime
+    env_file:
+      - docker.env
+    depends_on:
+      - mysql_standard
+      - mysql_john_deere
+      - mongodb
+    networks:
+      - etl_net
+    command: ["uv", "run", "python", "tasks/extract_realtime.py"]
+
+volumes:
+  mysql_standard_data:
+  mysql_john_deere_data:
+  mongo_data:
+  clickhouse_data:
+
+networks:
+  etl_net:
+    driver: bridge
