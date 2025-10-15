@@ -8,7 +8,6 @@ RUN apt-get update && apt-get install -y \
 
 COPY pyproject.toml uv.lock ./
 
-# Remover ambiente virtual existente se houver
 RUN rm -rf .venv
 
 RUN pip install uv
