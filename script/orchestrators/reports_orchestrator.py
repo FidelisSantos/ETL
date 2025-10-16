@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List
 from repositories import MysqlRepository, MongoRepository
 from services import ReportService
-from _types import ReportParams
+from _types import BaseParams
 from .base import BaseOrchestrator
 
 class ReportsOrchestrator(BaseOrchestrator):
@@ -12,8 +12,9 @@ class ReportsOrchestrator(BaseOrchestrator):
         self.report_types = ["reba", "kim_mho", "kim_pp", "niosh", "strain_index"]
         self.reports_collection = "reports"
         self.realtime_reports_collection = "realtime_reports"
+        self.reports_control_collection = "reports_control"
     
-    async def _run_report(self, report_type: str, params: ReportParams, repository: MysqlRepository) -> List:
+    async def _run_report(self, report_type: str, params: BaseParams, repository: MysqlRepository) -> List:
         try:
             service = ReportService(repository, report_type)
             return await service.get_reports(params)
@@ -30,18 +31,18 @@ class ReportsOrchestrator(BaseOrchestrator):
             raise e
     
     async def run_reports_etl(self, repository_standard: MysqlRepository, repository_john_deere: MysqlRepository) -> None:
-        last_report_control = await self.mongo_repository.get_last_report_control()
+        last_report_control = await self.mongo_repository.base_get_last_control(self.reports_control_collection)
         
         default_start = datetime(2023, 1, 1, 0, 0, 0, 0)
         default_end = datetime(2023, 2, 28, 23, 59, 59, 999999)
         start_date, end_date = self._calculate_date_range(last_report_control, default_start, default_end)
         
         if self._should_skip_etl(end_date):
-            self._log_with_timestamp("Difference less than 5 minutes. Skipping ETL.")
+            self._log_with_timestamp("Reports: Difference less than 5 minutes. Skipping ETL.")
             return
         
         self._log_with_timestamp(f"Starting ETL reports for the period of {start_date} to {end_date}")
-        params = ReportParams(start_date=start_date, end_date=end_date)
+        params = BaseParams(start_date=start_date, end_date=end_date)
         
         all_reports = await self._execute_all_reports(params, repository_standard, repository_john_deere)
         
@@ -55,7 +56,7 @@ class ReportsOrchestrator(BaseOrchestrator):
         
         await self._save_realtime_reports(all_reports)
     
-    async def _execute_all_reports(self, params: ReportParams, repo_standard: MysqlRepository, repo_john_deere: MysqlRepository) -> List:
+    async def _execute_all_reports(self, params: BaseParams, repo_standard: MysqlRepository, repo_john_deere: MysqlRepository) -> List:
         tasks = []
         
         for report_type in self.report_types:
@@ -114,7 +115,7 @@ class ReportsOrchestrator(BaseOrchestrator):
             "extracted_at": datetime.now(),
             "rows": len(all_reports)
         }
-        await self.mongo_repository.insert_report_control(data)
+        await self.mongo_repository.base_insert_control(self.reports_control_collection, data)
     
     async def _save_realtime_reports(self, all_reports: List) -> None:
         self._log_with_timestamp(f"Inserting {len(all_reports)} realtime reports")

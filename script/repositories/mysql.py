@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker, AsyncEngine
 from sqlalchemy import text
-from _types import ReportParams, FileParams
+from _types import BaseParams
 
 class MysqlRepository:
     def __init__(self, url: str, client: str):
@@ -16,7 +16,7 @@ class MysqlRepository:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
 
-    def _get_base_report_query(self) -> str:
+    def _get_base_query(self) -> str:
         return """
         JSON_OBJECT('id', f.id, 'original_name', f.original_name) AS file,
         JSON_OBJECT('id', c.id, 'name', c.name) AS company,
@@ -28,7 +28,7 @@ class MysqlRepository:
         :client AS client
         """
 
-    def _get_base_report_joins(self) -> str:
+    def _get_base_joins(self) -> str:
         return """
         JOIN companies c ON f.company_id = c.id
         JOIN organizations o ON f.organization_id = o.id
@@ -72,12 +72,12 @@ class MysqlRepository:
             r.*,
             'REBA' AS type,
             :client AS client,
-            {self._get_base_report_query()}
+            {self._get_base_query()}
         FROM reba_reports r
         JOIN files f ON r.file_id = f.id
-        {self._get_base_report_joins()}
+        {self._get_base_joins()}
         """
-    async def get_reba(self, params: ReportParams) -> List[Dict[str, Any]]:
+    async def get_reba(self, params: BaseParams) -> List[Dict[str, Any]]:
         query = f"""
         {self._get_base_reba_query()}
         WHERE 
@@ -107,13 +107,13 @@ class MysqlRepository:
         SELECT
             kpp.*,
             'KIM_PP' AS type,
-            {self._get_base_report_query()}
+            {self._get_base_query()}
         FROM kim_push_pull_reports kpp
         JOIN files f ON kpp.file_id = f.id
-        {self._get_base_report_joins()}
+        {self._get_base_joins()}
         """
     
-    async def get_kim_push_pull(self, params: ReportParams) -> List[Dict[str, Any]]:
+    async def get_kim_push_pull(self, params: BaseParams) -> List[Dict[str, Any]]:
         query = f"""
         {self._get_base_kim_push_pull_query()}
         WHERE
@@ -143,12 +143,12 @@ class MysqlRepository:
         SELECT
             si.*,
             'STRAIN_INDEX' AS type,
-            {self._get_base_report_query()}
+            {self._get_base_query()}
         FROM strain_index_reports si
         JOIN files f ON si.file_id = f.id
-        {self._get_base_report_joins()}
+        {self._get_base_joins()}
         """
-    async def get_strain_index(self, params: ReportParams) -> List[Dict[str, Any]]:
+    async def get_strain_index(self, params: BaseParams) -> List[Dict[str, Any]]:
         query = f"""
         {self._get_base_strain_index_query()}
         WHERE
@@ -179,12 +179,12 @@ class MysqlRepository:
         SELECT
             n.*,
             'NIOSH' AS type,
-            {self._get_base_report_query()}
+            {self._get_base_query()}
         FROM niosh_reports n
         JOIN files f ON n.file_id = f.id
-        {self._get_base_report_joins()}
+        {self._get_base_joins()}
         """
-    async def get_niosh(self, params: ReportParams) -> List[Dict[str, Any]]:
+    async def get_niosh(self, params: BaseParams) -> List[Dict[str, Any]]:
         query = f"""
         {self._get_base_niosh_query()}
         WHERE
@@ -214,13 +214,13 @@ class MysqlRepository:
         SELECT
             kmho.*,
             'KIM_MHO' AS type,
-            {self._get_base_report_query()}
+            {self._get_base_query()}
         FROM kim_mho_reports kmho
         JOIN files f ON kmho.file_id = f.id
-        {self._get_base_report_joins()}
+        {self._get_base_joins()}
         """
 
-    async def get_kim_mho(self, params: ReportParams) -> List[Dict[str, Any]]:
+    async def get_kim_mho(self, params: BaseParams) -> List[Dict[str, Any]]:
         query = f"""
         {self._get_base_kim_mho_query()}
         WHERE
@@ -246,8 +246,7 @@ class MysqlRepository:
         return await self._fetchall(query, {"client": self.client})
 
     #File
-    async def get_files(self, params: FileParams) -> List[Dict[str, Any]]:
-        
+    async def get_files(self, params: BaseParams) -> List[Dict[str, Any]]:
         query = f"""
         SELECT
         :client as client,
@@ -257,6 +256,7 @@ class MysqlRepository:
         f.duration,
         f.status,
         f.created_at,
+        f.is_active,
         JSON_OBJECT(
             'id', o.id,
             'name', o.name
@@ -265,10 +265,10 @@ class MysqlRepository:
             'id', c.id,
             'name', c.name
         ) AS company,
-        JSON_OBJECT(
-            'id', w.id,
-            'name', w.name
-        ) AS workstation,
+        CASE 
+            WHEN ANY_VALUE(w.id) IS NULL THEN NULL
+            ELSE JSON_OBJECT('id', ANY_VALUE(w.id), 'name', ANY_VALUE(w.name))
+        END AS workstation,
         JSON_OBJECT(
             'id', u.id,
             'name', u.name
@@ -299,15 +299,15 @@ class MysqlRepository:
         JSON_OBJECT('id', ANY_VALUE(o.id), 'name', ANY_VALUE(o.name)) AS organization,
         JSON_OBJECT('id', ANY_VALUE(c.id), 'name', ANY_VALUE(c.name)) AS company,
         CASE 
-                WHEN ANY_VALUE(w.id) IS NULL THEN NULL
-                ELSE JSON_OBJECT('id', ANY_VALUE(w.id), 'name', ANY_VALUE(w.name))
-            END AS workstation,
+            WHEN ANY_VALUE(w.id) IS NULL THEN NULL
+            ELSE JSON_OBJECT('id', ANY_VALUE(w.id), 'name', ANY_VALUE(w.name))
+        END AS workstation,
         COUNT(DISTINCT f.id) AS total_files,
         CASE
             WHEN SUM((atr.id IS NOT NULL)
-                        OR (crr.id IS NOT NULL)
-                        OR (kmr.id IS NOT NULL)
-                        OR (kppr.id IS NOT NULL)) > 0 THEN 1
+                OR (crr.id IS NOT NULL)
+                OR (kmr.id IS NOT NULL)
+                OR (kppr.id IS NOT NULL)) > 0 THEN 1
             ELSE 0
         END AS has_report
         FROM files f
@@ -324,3 +324,44 @@ class MysqlRepository:
         return await self._fetchall(query, {
             "client": self.client
         })
+    
+    # Action Plan
+    async def get_action_plan(self, params: BaseParams) -> List[Dict[str, Any]]:
+        query = f"""
+        SELECT
+        apv.*,
+        apv.id as action_plan_id,
+        {self._get_base_query()}
+        FROM action_plans_v2 apv 
+        JOIN files f ON apv.file_id = f.id
+        {self._get_base_joins()}
+        WHERE
+            apv.updated_at >= :start_date
+            AND apv.updated_at <= :end_date
+        """
+        return await self._fetchall(query, {
+            "client": self.client,
+            "start_date": params["start_date"],
+            "end_date": params["end_date"]
+        })
+    
+    async def get_action_plan_realtime(self) -> List[Dict[str, Any]]:
+        query = f"""
+        SELECT 
+            apht.name,
+            apht.description,
+            JSON_OBJECT(
+                "id", apv.id,
+                "title", apv.title,
+                "status", apv.status
+            ) AS action_plan,
+            {self._get_base_query()}
+            FROM action_plan_histories aph 
+            INNER JOIN action_plan_history_types apht ON aph.action_plan_history_type_id = apht.id
+            INNER JOIN action_plans_v2 apv ON aph.action_plan_id = apv.id
+            INNER JOIN files f ON apv.file_id = f.id
+            {self._get_base_joins()}
+        WHERE
+            aph.updated_at >= NOW() - INTERVAL 3 MONTH;
+        """
+        return await self._fetchall(query, {"client": self.client})

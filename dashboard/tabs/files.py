@@ -112,16 +112,20 @@ def render_files_tab(files_df, realtime_files_df):
         filtered_files["company_name"] = filtered_files["company"].apply(lambda x: x.get("name") if isinstance(x, dict) else None)
         filtered_files["workstation_name"] = filtered_files["workstation"].apply(lambda x: x.get("name") if isinstance(x, dict) else None)
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
         total_files = len(filtered_files)
         avg_duration = filtered_files["duration"].mean() if not filtered_files["duration"].empty else 0
         col1.metric("Total Files", total_files)
         col2.metric("Average Duration (s)", round(avg_duration, 2))
         col3.metric("Organizations", filtered_files['organization_name'].nunique())
         col4.metric("Companies", filtered_files['company_name'].nunique())
+        col5.metric("Active", filtered_files[filtered_files["is_active"] == 1].shape[0])
+        col6.metric("Inactive", filtered_files[filtered_files["is_active"] == 0].shape[0])
+
+        filtered_files["is_active_converted"] = filtered_files["is_active"].apply(lambda x: "✅" if x else "❌")
 
         display_df = filtered_files[[
-            "original_name", "generated_name", "duration", "status",
+            "original_name", "generated_name", "duration", "status", "is_active_converted",
             "client", "organization_name", "company_name", "workstation_name",
             "created_at"
         ]]
@@ -134,7 +138,8 @@ def render_files_tab(files_df, realtime_files_df):
                 "original_name": "📹 Original Name",
                 "generated_name": "📹 Generated Name",
                 "duration": "⏱ Duration",
-                "status": "🔘 Status",
+                "status": "📁 Status",
+                "is_active_converted": "🔘Active",
                 "client": "👤 Client",
                 "organization_name": "🏢 Organization",
                 "company_name": "🏭 Company",

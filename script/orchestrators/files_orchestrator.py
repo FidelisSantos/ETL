@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List
 from repositories import MysqlRepository, MongoRepository
 from services import FileService
-from _types import FileParams
+from _types import BaseParams
 from .base import BaseOrchestrator
 
 class FilesOrchestrator(BaseOrchestrator):
@@ -11,20 +11,21 @@ class FilesOrchestrator(BaseOrchestrator):
         super().__init__(mongo_repository)
         self.files_collection = "files"
         self.realtime_files_collection = "realtime_files"
+        self.files_control_collection = "files_control"
     
     async def run_files_etl(self, repository_standard: MysqlRepository, repository_john_deere: MysqlRepository) -> None:
-        last_file_control = await self.mongo_repository.get_last_file_control()
+        last_file_control = await self.mongo_repository.base_get_last_control(self.files_control_collection)
         
         default_start = datetime(2023, 1, 1, 0, 0, 0, 0)
         default_end = datetime(2023, 1, 1, 23, 59, 59, 999999)
         start_date, end_date = self._calculate_date_range(last_file_control, default_start, default_end)
         
         if self._should_skip_etl(end_date):
-            self._log_with_timestamp("Difference less than 5 minutes. Skipping ETL.")
+            self._log_with_timestamp("Files: Difference less than 5 minutes. Skipping ETL.")
             return
         
         self._log_with_timestamp(f"Starting ETL files for the period of {start_date} to {end_date}")
-        params = FileParams(start_date=start_date, end_date=end_date)
+        params = BaseParams(start_date=start_date, end_date=end_date)
         
         all_files = await self._execute_all_files(params, repository_standard, repository_john_deere)
         
@@ -37,7 +38,7 @@ class FilesOrchestrator(BaseOrchestrator):
         
         await self._save_realtime_files(all_files)
     
-    async def _execute_all_files(self, params: FileParams, repo_standard: MysqlRepository, repo_john_deere: MysqlRepository) -> List:
+    async def _execute_all_files(self, params: BaseParams, repo_standard: MysqlRepository, repo_john_deere: MysqlRepository) -> List:
         tasks = []
         
         tasks.append(self._run_files_for_client(params, repo_standard, "standard"))
@@ -77,7 +78,7 @@ class FilesOrchestrator(BaseOrchestrator):
         self._log_with_timestamp(f"Total realtime files: {len(all_files)}")
         return all_files
     
-    async def _run_files_for_client(self, params: FileParams, repository: MysqlRepository, client_name: str) -> List:
+    async def _run_files_for_client(self, params: BaseParams, repository: MysqlRepository, client_name: str) -> List:
         try:
             service = FileService(repository)
             return await service.get_files(params)
@@ -102,8 +103,8 @@ class FilesOrchestrator(BaseOrchestrator):
             "extracted_at": datetime.now(),
             "rows": len(all_files)
         }
-        await self.mongo_repository.insert_file_control(data)
+        await self.mongo_repository.base_insert_control(self.files_control_collection, data)
     
     async def _save_realtime_files(self, all_files: List) -> None:
         self._log_with_timestamp(f"Inserting {len(all_files)} realtime files")
-        await self.mongo_repository.bulk_insert_realtime_files(self.realtime_files_collection, all_files)
+        await self.mongo_repository.base_bulk_insert_realtime(self.realtime_files_collection, all_files)

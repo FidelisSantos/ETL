@@ -81,6 +81,7 @@ def render_reports_tab(reports_df, realtime_reports_df):
             options=reports_df['workstation'].apply(lambda x: x.get('name') if isinstance(x, dict) else None).dropna().unique(),
             key="reports_workstation"
         )
+    
 
     filtered_reports = reports_df.copy()
     filtered_reports = filtered_reports[
@@ -122,12 +123,14 @@ def render_reports_tab(reports_df, realtime_reports_df):
             lambda x: x.get("original_name") if isinstance(x, dict) else None
         )
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.metric("Total Reports", len(filtered_reports))
         col2.metric("Organizations", filtered_reports['organization_name'].nunique())
         col3.metric("Companies", filtered_reports['company_name'].nunique())
         col4.metric("Workstations", filtered_reports['workstation_name'].nunique())
-
+        col5.metric("Active", filtered_reports[filtered_reports["is_active"] == 1].shape[0])
+        col6.metric("Inactive", filtered_reports[filtered_reports["is_active"] == 0].shape[0])
+        
         filtered_reports["status_icon"] = filtered_reports["is_active"].apply(lambda x: "✅" if x else "❌")
 
         display_df = filtered_reports[[

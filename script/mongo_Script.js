@@ -90,6 +90,7 @@ db.createCollection("reports", {
           "organization",
           "company",
           "client",
+          "is_active"
         ],
         properties: {
           _id: { bsonType: "objectId" },
@@ -100,6 +101,7 @@ db.createCollection("reports", {
           status: { bsonType: "string" },
           created_at: { bsonType: "date" },
           client: { bsonType: "string" },
+          is_active: { bsonType: "int" },
           organization: {
             bsonType: "object",
             required: ["id", "name"],
@@ -192,4 +194,147 @@ db.createCollection("reports", {
   });
 
   db.file_control.createIndex({ extracted_at: 1 });
+  
+  db.createCollection("action_plans", {
+    validator: {
+      $jsonSchema: {
+        bsonType: "object",
+        required: [
+          "_id",
+          "action_plan_id",
+          "status",
+          "title",
+          "description",
+          "created_at",
+          "updated_at",
+          "completed_at",
+          "file",
+          "company",
+          "organization",
+          "workstation",
+          "client",
+        ],
+        properties: {
+          _id: { bsonType: "objectId" },
+          action_plan_id: { bsonType: "string" },
+          title: { bsonType: "string" },
+          description: { bsonType: ["string", "null"] },
+          status: { bsonType: "string" },
+          created_at: { bsonType: "date" },
+          updated_at: { bsonType: "date" },
+          completed_at: { bsonType: ["date", "null"] },
+          client: { bsonType: "string" },
+          priority: { bsonType: ["int", "null"] },
+          organization: {
+            bsonType: "object",
+            required: ["id", "name"],
+            properties: {
+              id: { bsonType: "string" },
+              name: { bsonType: "string" }
+            }
+          },
+          company: {
+            bsonType: "object",
+            required: ["id", "name"],
+            properties: {
+              id: { bsonType: "string" },
+              name: { bsonType: "string" }
+            }
+          },
+          workstation: {
+            bsonType: ["object", "null"],
+            properties: {
+              id: { bsonType: "string" },
+              name: { bsonType: "string" }
+            }
+          },
+          file: {
+            bsonType: "object",
+            required: ["id", "original_name"],
+            properties: {
+              id: { bsonType: "string" },
+              original_name: { bsonType: "string" }
+            }
+          }
+        }
+      }
+    }
+  });
+    
+  db.action_plans.createIndex({ created_at: 1 });
+  
+  db.createCollection("realtime_action_plans_actions", {
+    validator: {
+      $jsonSchema: {
+        bsonType: "object",
+        required: [
+          "_id",
+          "name",
+          "description",
+          "action_plan",
+          "organization",
+          "company",
+          "client",
+          "action_plan",
+          "workstation"
+        ],
+        properties: {
+          _id: { bsonType: "objectId" },
+          client: { bsonType: "string" },
+          name: { bsonType: "string" },
+          description: { bsonType: "string" },
+          organization: {
+            bsonType: "object",
+            required: ["id", "name"],
+            properties: {
+              id: { bsonType: "string" },
+              name: { bsonType: "string" }
+            }
+          },
+          company: {
+            bsonType: "object",
+            required: ["id", "name"],
+            properties: {
+              id: { bsonType: "string" },
+              name: { bsonType: "string" }
+            }
+          },
+          workstation: {
+            bsonType: ["object", "null"],
+            properties: {
+              id: { bsonType: "string" },
+              name: { bsonType: "string" }
+            }
+          },
+          action_plan: {
+            bsonType: "object",
+            required: ["id", "title", "status"],
+            properties: {
+              id: { bsonType: "string" },
+              title: { bsonType: "string" },
+              status: { bsonType: "string" }
+            }
+          }
+        }
+      }
+    }
+  });
+  
+  db.createCollection("action_plans_control", {
+    validator: {
+      $jsonSchema: {
+        bsonType: "object",
+        required: ["_id", "start_date", "end_date", "extracted_at", "rows"],
+        properties: {
+          _id: { bsonType: "objectId" },
+          start_date: { bsonType: "date" },
+          end_date: { bsonType: "date" },
+          extracted_at: { bsonType: "date" },
+          rows: { bsonType: "int" }
+        }
+      }
+    }
+  });
+
+  db.action_plans_control.createIndex({ extracted_at: 1 });
   

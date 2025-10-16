@@ -66,17 +66,6 @@ class MongoRepository:
         if reports:
             await col.insert_many([report.create() for report in reports])
 
-    async def insert_report_control(self, data: Dict[str, Any]):
-        col = self._get_collection("report_control")
-        result = await col.insert_one(data)
-        return result.inserted_id
-
-
-    async def get_last_report_control(self) -> Dict[str, Any]:
-        col = self._get_collection("report_control")
-        result = await col.find_one(sort=[("extracted_at", -1)])
-        return result
-
     async def bulk_upsert_files(self, collection: str, files: List[Any]):
         if not files:
             return
@@ -88,7 +77,8 @@ class MongoRepository:
             
             filter_query = {
                 "file_id": file["file_id"],
-                "created_at": file["created_at"]
+                "created_at": file["created_at"],
+                "client": file["client"]
             }
 
             update_query = {"$set": file}  
@@ -97,23 +87,40 @@ class MongoRepository:
         if bulk_ops:
             await col.bulk_write(bulk_ops)
     
+    async def bulk_upsert_action_plans(self, collection: str, action_plans: List[Any]):
+        if not action_plans:
+            return
+
+        col = self._get_collection(collection)
+        bulk_ops = []
+
+        for action_plan in action_plans:
+            filter_query = {
+                "action_plan_id": action_plan["action_plan_id"],
+                "created_at": action_plan["created_at"],
+                "client": action_plan["client"]
+            }
+            update_query = {"$set": action_plan}
+            bulk_ops.append(UpdateOne(filter_query, update_query, upsert=True))
+
+        if bulk_ops:
+            await col.bulk_write(bulk_ops)
     
-    async def bulk_insert_realtime_files(self, collection: str, files: List[Any]):
-        if not files:
+    async def base_bulk_insert_realtime(self, collection: str, data: List[Any]):
+        if not data:
             return
 
         col = self._get_collection(collection)
         await col.delete_many({})
+        if data:
+            await col.insert_many(data)
 
-        if files:
-            await col.insert_many(files)
-    
-    async def insert_file_control(self, data: Dict[str, Any]):
-        col = self._get_collection("file_control")
+    async def base_insert_control(self, collection: str, data: Dict[str, Any]):
+        col = self._get_collection(collection)
         result = await col.insert_one(data)
         return result.inserted_id
     
-    async def get_last_file_control(self) -> Dict[str, Any]:
-        col = self._get_collection("file_control")
+    async def base_get_last_control(self, collection: str):
+        col = self._get_collection(collection)
         result = await col.find_one(sort=[("extracted_at", -1)])
         return result

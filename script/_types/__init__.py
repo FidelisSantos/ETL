@@ -1,3 +1,3 @@
-from .types import ReportParams, FileParams
+from .types import BaseParams
 
-__all__ = ["ReportParams", "FileParams"]
+__all__ = ["BaseParams"]

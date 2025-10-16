@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Literal
 import json
 from repositories import MysqlRepository
-from _types import ReportParams
+from _types import BaseParams
 from entities import RiskCalculator
 from schemas import ReportMongoSchema
 
@@ -32,7 +32,7 @@ class ReportService:
             },
         }
 
-    async def get_reports(self, params: ReportParams) -> List[Dict[str, Any]]:
+    async def get_reports(self, params: BaseParams) -> List[Dict[str, Any]]:
         reports = await self._map_reports[self.report_name]['get'](params)
         return [self._mount_mongo_schema(report, self.report_name) for report in reports]
 
