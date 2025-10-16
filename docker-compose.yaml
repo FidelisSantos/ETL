@@ -82,12 +82,16 @@ services:
     env_file:
       - docker.env
     depends_on:
-      - mysql_standard
-      - mysql_john_deere
-      - mongodb
+      mysql_standard:
+        condition: service_started
+      mysql_john_deere:
+        condition: service_started
+      mongodb:
+        condition: service_started
     networks:
       - etl_net
-    command: ["uv", "run", "python", "tasks/extract.py"]
+    restart: unless-stopped
+    command: ["sh", "-c", "sleep 10 && uv run python tasks/extract.py"]
 
   etl_extract_realtime:
     build:
@@ -97,12 +101,16 @@ services:
     env_file:
       - docker.env
     depends_on:
-      - mysql_standard
-      - mysql_john_deere
-      - mongodb
+      mysql_standard:
+        condition: service_started
+      mysql_john_deere:
+        condition: service_started
+      mongodb:
+        condition: service_started
     networks:
       - etl_net
-    command: ["uv", "run", "python", "tasks/extract_realtime.py"]
+    restart: unless-stopped
+    command: ["sh", "-c", "sleep 10 && uv run python tasks/extract_realtime.py"]
 
 volumes:
   mysql_standard_data:

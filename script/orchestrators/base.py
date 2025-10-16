@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from repositories import MongoRepository
+from utils import env
 
 class BaseOrchestrator:
     """Classe base para orquestradores ETL"""
@@ -8,11 +9,13 @@ class BaseOrchestrator:
     def __init__(self, mongo_repository: MongoRepository):
         self.mongo_repository = mongo_repository
     
-    def _calculate_date_range(self, last_control: Optional[Dict], default_start: datetime, default_end: datetime, days_offset: int = 30) -> tuple[datetime, datetime]:
+    def _calculate_date_range(self, last_control: Optional[Dict], default_start: datetime, default_end: datetime) -> tuple[datetime, datetime]:
         """Calcula o range de datas baseado no último controle"""
+        diff_type = env.DIFF_TYPE
+        offset = int(env.OFFSET)
         if last_control:
             start_date = last_control["end_date"] + timedelta(seconds=1)
-            end_date = last_control["end_date"] + timedelta(days=days_offset)
+            end_date = last_control["end_date"] + timedelta(**{diff_type: offset})
         else:
             start_date = default_start
             end_date = default_end

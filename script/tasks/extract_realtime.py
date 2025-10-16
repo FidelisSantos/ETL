@@ -18,15 +18,23 @@ async def main():
         
         while True:
             try:
+                print("Starting Realtime ETL cycle...", flush=True)
                 await reports_orchestrator.run_realtime_reports_etl(repository_standard, repository_john_deere)
+                print("Realtime Reports ETL completed", flush=True)
                 
                 await files_orchestrator.run_realtime_files_etl(repository_standard, repository_john_deere)
+                print("Realtime Files ETL completed", flush=True)
                 
                 await action_plan_orchestrator.run_realtime_action_plans_etl(repository_standard, repository_john_deere)
+                print("Realtime Action Plans ETL completed", flush=True)
+                
+                print("Realtime ETL cycle completed successfully", flush=True)
             except Exception as e:
-                print(f"Error: {e}")
+                print(f"Error in Realtime ETL cycle: {e}", flush=True)
             
-            await asyncio.sleep(5) 
+            sleep_time = int(env.JOB_REALTIME_SLEEP_SECONDS)
+            print(f"Extract realtime: Sleeping for {sleep_time} seconds", flush=True)
+            await asyncio.sleep(sleep_time) 
         
         
 
